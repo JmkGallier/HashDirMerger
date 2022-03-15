@@ -1,57 +1,42 @@
 import hashlib
+import os
 from pathlib import Path
 from os.path import basename, splitext
 import subprocess
 
 
 """
-Full Featureset:
+Full Feature set:
 Detect duplicates
 Detect variant folders to be merged
     If a folder has enough duplicate hashes, it may be a variant
     If a folder has enough duplicate named sub folders
 Merge variant folders
+Point system that considers: Parent_Dir, file match hits, hit/total files, sub_dir hits, sub_dir hit/total subdirs
 """
 
 
-class FileHashTree:
-    cumulative_files = {}
-    simple_folders = {}
-    folder_flagger = {}
+class MainProcess:
+    def __init__(self, target_folder):
+        self.items = {}
+        self.process_folder(target_folder)
 
-    def __init__(self):
-        pass
-
-
-class FileHashTable:
-    def __init__(self, file_path_obj, recursive=False):
-        try:
-            self.items = {}
-            self.sub_dir = []
-            p = file_path_obj.glob('**/*')
-            for item in p:
-                if item.is_file():
-                    hash_obj = HashFile(item)
-                    if hash_obj in FileHashTree.cumulative_files:
-                        FileHashTree.cumulative_files[hash_obj.hash].append(hash_obj.file_path)
-                        FileHashTree.folder_flagger.setdefault(hash_obj.file_path, 0)
-                        FileHashTree.folder_flagger[hash_obj] += 1
-                    else:
-                        FileHashTree.cumulative_files.setdefault(hash_obj.hash, []).append(hash_obj)
-                elif item.is_dir():
-                    FileHashTable(item)
-                else:
-                    print(f"[ INFO ] Unexpected file found: {item}")
-            # files = [x for x in p if x.is_file()]
-            # [print(j) for j in files]
-            # for each dir
-            # {filepath: {'examplehash123': hashfile_obj, .....}}
-            # for each file,
-        except IsADirectoryError:
-            print(f"{file_path_obj} is a File.")
-
-    def dir_hash(self):
-        pass
+    def process_folder(self, target_folder):
+        print(target_folder)
+        folder_contents = os.listdir(target_folder)
+        folder_files = []
+        folder_dirs = []
+        for file in folder_contents:
+            target_file = target_folder / file
+            if os.path.isfile(target_file):
+                folder_files.append(target_file)
+            if os.path.isdir(target_file):
+                folder_dirs.append(target_file)
+        for sub_dir in folder_dirs:
+            self.process_folder(sub_dir)
+        for file in folder_files:
+            hash_obj = HashFile(file)
+            self.items.setdefault(hash_obj.hash, []).append(hash_obj)
 
 
 class HashFile:
@@ -71,10 +56,11 @@ class HashFile:
         return file_hash.hexdigest()
 
 
-hash_target = Path.home() / 'Desktop' / "testdir"
-FileHashTable(hash_target)
+hash_target = Path.home() / 'Desktop' / "HashMergerTest"
+testMerge = MainProcess(hash_target)
+[print(x, len(y)) for x, y in testMerge.items.items()]
 
-[print(x, [y.file_path for y in contents]) for x, contents in FileHashTree.cumulative_files.items()]
+
 # Create class for files hashed
 # Attributes: hash, full path, parent folder, grandparent folder, metadate
 # print(HashMerger.hash_file(hash_target, 4096))
@@ -94,5 +80,3 @@ FileHashTable(hash_target)
 # # Making Directories and sub-directories
 # path = Path.home() / 'python-file-paths' / 'foo' / 'bar'
 # path.mkdir(parents=True, exist_ok=True)
-
-
