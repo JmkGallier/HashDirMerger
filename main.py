@@ -2,7 +2,8 @@ import hashlib
 import os
 from pathlib import Path
 from os.path import basename, splitext
-# import subprocess
+import multiprocessing
+import time
 
 
 """
@@ -18,27 +19,30 @@ Point system that considers: Parent_Dir, file match hits, hit/total files, sub_d
 
 class MainProcess:
     def __init__(self, target_folder):
-        self.items = {}
-        self.process_folder(target_folder)
+        self.items = multiprocessing.Manager().dict()
+        self.filelist = []
+        self.evaluate_folders(target_folder)
+        self.time_hashstart = time.perf_counter()
+        print(f"\nStarting Hash of folder:\n{target_folder}\n")
+        pool = multiprocessing.Pool(processes=4)
+        result = pool.imap_unordered(HashFile, self.filelist)
+        for i in result:
+            self.items.setdefault(i.hash, [i]).append(i)
+            print(len(self.items[i.hash]), i.filename)
+        pool.close()
+        pool.join()
+        self.time_hashstop = time.perf_counter()
+        self.hashtime = self.time_hashstop - self.time_hashstart
 
-    def process_folder(self, target_folder):
+    def evaluate_folders(self, target_folder):
         print(target_folder)
         folder_contents = os.listdir(target_folder)
-        folder_files = []
-        folder_dirs = []
         for file in folder_contents:
             target_file = target_folder / file
             if os.path.isfile(target_file):
-                folder_files.append(target_file)
+                self.filelist.append(target_file)
             if os.path.isdir(target_file):
-                folder_dirs.append(target_file)
-        for sub_dir in folder_dirs:
-            self.process_folder(sub_dir)
-        for file in folder_files:
-            if len(self.items) % 1000 == 0:
-                print(f"[ INFO ] {len(self.items)} Hashing {file}")
-            hash_obj = HashFile(file)
-            self.items.setdefault(hash_obj.hash, []).append(hash_obj)
+                self.evaluate_folders(target_file)
 
 
 class HashFile:
@@ -49,19 +53,33 @@ class HashFile:
         self.parent_dir = file_path_obj.parent
         self.hash = self.hash_file()
 
-    def hash_file(self, block_size=4096):
+    def hash_file(self):
         file_hash = hashlib.sha256()
+        block_size = self.eval_blocksize()
         with open(self.file_path, 'rb') as f:
-            fb = f.read(block_size)
-            while len(fb) > 0:
-                file_hash.update(fb)
-                fb = f.read(block_size)
+            while True:
+                chunk = f.read(block_size)
+                if not chunk:
+                    break
+                file_hash.update(chunk)
         return file_hash.hexdigest()
 
+    def eval_blocksize(self, max_block=1073741824):
+        if self.filesize > max_block:
+            return max_block
+        return 536870912
 
-hash_target = Path.home() / 'Desktop' / "The Ark Challenge"
-testMerge = MainProcess(hash_target)
-[print(x, len(y)) for x, y in testMerge.items.items()]
+
+if __name__ == '__main__':
+    time_mainstart = time.perf_counter()
+    hash_target = Path.home() / 'Desktop' / "The Ark Challenge"
+    testMerge = MainProcess(hash_target)
+    time_mainstop = time.perf_counter()
+    maintime = time_mainstop - time_mainstart
+    [print(x, type(y), len(y)) for x, y in testMerge.items.items()]
+    print(len(testMerge.items))
+    print(f"Hash Time: {testMerge.hashtime}")
+    print(f"Main Time: {maintime}")
 
 # Dictionary Update Queue
 # Queue of Hash-HashObj tuple pairs
