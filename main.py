@@ -2,7 +2,7 @@ import hashlib
 import os
 from pathlib import Path
 from os.path import basename, splitext
-import subprocess
+# import subprocess
 
 
 """
@@ -35,6 +35,8 @@ class MainProcess:
         for sub_dir in folder_dirs:
             self.process_folder(sub_dir)
         for file in folder_files:
+            if len(self.items) % 1000 == 0:
+                print(f"[ INFO ] {len(self.items)} Hashing {file}")
             hash_obj = HashFile(file)
             self.items.setdefault(hash_obj.hash, []).append(hash_obj)
 
@@ -42,9 +44,10 @@ class MainProcess:
 class HashFile:
     def __init__(self, file_path_obj):
         self.file_path = file_path_obj
-        self.filename = splitext(basename('/path/file.suffix'))[0]
-        self.hash = self.hash_file()
+        self.filename, self.filetype = splitext(basename(file_path_obj))
+        self.filesize = os.path.getsize(self.file_path)
         self.parent_dir = file_path_obj.parent
+        self.hash = self.hash_file()
 
     def hash_file(self, block_size=4096):
         file_hash = hashlib.sha256()
@@ -56,10 +59,20 @@ class HashFile:
         return file_hash.hexdigest()
 
 
-hash_target = Path.home() / 'Desktop' / "HashMergerTest"
+hash_target = Path.home() / 'Desktop' / "The Ark Challenge"
 testMerge = MainProcess(hash_target)
 [print(x, len(y)) for x, y in testMerge.items.items()]
 
+# Dictionary Update Queue
+# Queue of Hash-HashObj tuple pairs
+
+# Path Matching
+# os.path.commonprefix
+# os.path.commonpath
+
+# Merge all folder structures into a primary branch + duplicates branch
+# Create folder branches as separate folders for each unique commonprefix
+# Create shadow copy of folder-branch hierarchy by attempting to reassemble the primary/idea folder-branch
 
 # Create class for files hashed
 # Attributes: hash, full path, parent folder, grandparent folder, metadate
