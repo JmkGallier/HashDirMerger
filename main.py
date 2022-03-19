@@ -18,17 +18,22 @@ Point system that considers: Parent_Dir, file match hits, hit/total files, sub_d
 
 
 class MainProcess:
-    def __init__(self, target_folder):
-        self.items = multiprocessing.Manager().dict()
+    def __init__(self, target_folder, merge_heads=None):
+        if merge_heads is None:
+            self.merge_enabled = False
+        self.manager = multiprocessing.Manager()
+        self.items = self.manager.dict()
         self.filelist = []
+        self.dirlist = []
         self.evaluate_folders(target_folder)
+        self.merge_heads = merge_heads
+        # Merging is disabled if list is empty
         self.time_hashstart = time.perf_counter()
         print(f"\nStarting Hash of folder:\n{target_folder}\n")
         pool = multiprocessing.Pool(processes=4)
         result = pool.imap_unordered(HashFile, self.filelist)
         for i in result:
-            self.items.setdefault(i.hash, [i]).append(i)
-            print(len(self.items[i.hash]), i.filename)
+            self.items.setdefault(i.hash, self.manager.list()).append(i)
         pool.close()
         pool.join()
         self.time_hashstop = time.perf_counter()
@@ -42,7 +47,24 @@ class MainProcess:
             if os.path.isfile(target_file):
                 self.filelist.append(target_file)
             if os.path.isdir(target_file):
+                self.dirlist.append(FolderProfile(target_folder))
                 self.evaluate_folders(target_file)
+
+
+class FolderProfile:
+    def __init__(self, dirpath):
+        self.dirname = ""
+        self.dirpath = dirpath
+        self.eskimo_folders = [] # folder + list of shared files (can share more than one file)
+        # Update in script that reviews hash results. append parent dir that share child files.
+        # Mid hashing shared child updates are feasible in the following scenario:
+        # If Hash is added to MainProcess.items,
+        # FolderProfile of new HashFile Dir receies copy of last Hash items eskimo folder
+        #   (self.items[HashObj.hash].parentdir].eskimo_folders)
+        #   Occurs before Hashfile is added to .items
+        # Other HashFile's FolderProfiles eskimo Lists are appended with parent dir of new HashFile
+        #   for x in MainProcess.items[HashObj]:
+        #       x.
 
 
 class HashFile:
@@ -72,14 +94,23 @@ class HashFile:
 
 if __name__ == '__main__':
     time_mainstart = time.perf_counter()
-    hash_target = Path.home() / 'Desktop' / "The Ark Challenge"
-    testMerge = MainProcess(hash_target)
+    hash_target = Path.home() / 'Desktop' / "HashMergerTest"
+    merge_focus = ["j"]
+    testMerge = MainProcess(hash_target, merge_heads=merge_focus)
     time_mainstop = time.perf_counter()
     maintime = time_mainstop - time_mainstart
-    [print(x, type(y), len(y)) for x, y in testMerge.items.items()]
+    new_dict = {}
+    for x, y in testMerge.items.items():
+        new_dict[x] = list(y)
+    for x, y in new_dict.items():
+        for file in y:
+            print(x, file.parent_dir)
     print(len(testMerge.items))
     print(f"Hash Time: {testMerge.hashtime}")
     print(f"Main Time: {maintime}")
+
+# Mutable sub object within dictionary not updates
+# Fix by making each unique hash an instance of hash class with a mangager list.
 
 # Dictionary Update Queue
 # Queue of Hash-HashObj tuple pairs
