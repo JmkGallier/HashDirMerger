@@ -1,0 +1,54 @@
+"""
+Full Feature set:
+Detect duplicates
+Detect variant folders to be merged
+    If a folder has enough duplicate hashes, it may be a variant
+    If a folder has enough duplicate named sub folders
+Merge variant folders
+Point system that considers: Parent_Dir, file match hits, hit/total files, sub_dir hits, sub_dir hit/total subdirs
+"""
+
+"FolderProfile.associate_folders" # folder + list of shared files (can share more than one file)
+        # Update in script that reviews hash results. append parent dir that share child files.
+        # Mid hashing shared child updates are feasible in the following scenario:
+        # If Hash is added to MainProcess.items,
+        # FolderProfile of new HashFile Dir receies copy of last Hash items eskimo folder
+        #   (self.items[HashObj.hash].parentdir].eskimo_folders)
+        #   Occurs before Hashfile is added to .items
+        # Other HashFile's FolderProfiles eskimo Lists are appended with parent dir of new HashFile
+        #   for x in MainProcess.items[HashObj]:
+        #       x.
+
+# Mutable sub object within dictionary not updates
+# Fix by making each unique hash an instance of hash class with a mangager list.
+
+# Dictionary Update Queue
+# Queue of Hash-HashObj tuple pairs
+
+# Path Matching
+# os.path.commonprefix
+# os.path.commonpath
+
+# Merge all folder structures into a primary branch + duplicates branch
+# Create folder branches as separate folders for each unique commonprefix
+# Create shadow copy of folder-branch hierarchy by attempting to reassemble the primary/idea folder-branch
+
+# Create class for files hashed
+# Attributes: hash, full path, parent folder, grandparent folder, metadate
+# print(HashMerger.hash_file(hash_target, 4096))
+
+# # Running commands
+# output = subprocess.check_output(['ls', '-l'])
+#
+# # Path File Manipulation
+# test1 = splitext(basename('/path/file.suffix'))[0]  # Filename w/suffix
+# test3 = Path('/path/file.suffix').stem  # Filename w/o suffix
+# test5 = Path('/path/file/suffix').suffix # Filename  suffix
+#
+# # Making Directories
+# path = Path.home() / 'python-file-paths'
+# path.mkdir()
+#
+# # Making Directories and sub-directories
+# path = Path.home() / 'python-file-paths' / 'foo' / 'bar'
+# path.mkdir(parents=True, exist_ok=True)

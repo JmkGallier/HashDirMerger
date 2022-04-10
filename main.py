@@ -4,42 +4,50 @@ from pathlib import Path
 from os.path import basename, splitext
 import multiprocessing
 import time
-
-
-"""
-Full Feature set:
-Detect duplicates
-Detect variant folders to be merged
-    If a folder has enough duplicate hashes, it may be a variant
-    If a folder has enough duplicate named sub folders
-Merge variant folders
-Point system that considers: Parent_Dir, file match hits, hit/total files, sub_dir hits, sub_dir hit/total subdirs
-"""
+import operator
 
 
 class MainProcess:
     def __init__(self, target_folder, merge_heads=None):
         if merge_heads is None:
             self.merge_enabled = False
+        self.target_folder = target_folder
         self.manager = multiprocessing.Manager()
         self.items = self.manager.dict()
         self.filelist = []
         self.dirlist = []
         self.evaluate_folders(target_folder)
         self.merge_heads = merge_heads
+        self.hash_time = None
+        self.hash_driver()
         # Merging is disabled if list is empty
-        self.time_hashstart = time.perf_counter()
-        print(f"\nStarting Hash of folder:\n{target_folder}\n")
-        pool = multiprocessing.Pool(processes=4)
+
+    def hash_driver(self):
+        """
+        Multi-threaded Recursive Directory File Hash driver function.
+        Input:  self.file_list
+        Output: self.items (updated), self.hash_time (updated)
+        """
+        time_hashstart = time.perf_counter()
+        print(f"\nStarting Hash of folder:\n{self.target_folder}\n")
+        pool = multiprocessing.Pool(processes=4)    # ToDo: Dynamically assign process count
+        # ToDo: Refactor below: HashFile (HF) to driver function in MainProcess class;
+        # "HF" init & nested hash_file func should be unit testable
         result = pool.imap_unordered(HashFile, self.filelist)
         for i in result:
             self.items.setdefault(i.hash, self.manager.list()).append(i)
         pool.close()
         pool.join()
-        self.time_hashstop = time.perf_counter()
-        self.hashtime = self.time_hashstop - self.time_hashstart
+        time_hashstop = time.perf_counter()
+        self.hash_time = time_hashstop - time_hashstart
 
     def evaluate_folders(self, target_folder):
+        #   ToDo: Refactor to Unit Testable StaticMethod.
+        """
+
+        :param target_folder:
+        :return:
+        """
         print(target_folder)
         folder_contents = os.listdir(target_folder)
         for file in folder_contents:
@@ -55,16 +63,7 @@ class FolderProfile:
     def __init__(self, dirpath):
         self.dirname = ""
         self.dirpath = dirpath
-        self.eskimo_folders = [] # folder + list of shared files (can share more than one file)
-        # Update in script that reviews hash results. append parent dir that share child files.
-        # Mid hashing shared child updates are feasible in the following scenario:
-        # If Hash is added to MainProcess.items,
-        # FolderProfile of new HashFile Dir receies copy of last Hash items eskimo folder
-        #   (self.items[HashObj.hash].parentdir].eskimo_folders)
-        #   Occurs before Hashfile is added to .items
-        # Other HashFile's FolderProfiles eskimo Lists are appended with parent dir of new HashFile
-        #   for x in MainProcess.items[HashObj]:
-        #       x.
+        self.associate_folder = []
 
 
 class HashFile:
@@ -76,6 +75,7 @@ class HashFile:
         self.hash = self.hash_file()
 
     def hash_file(self):
+        #   ToDo: Refactor to Unit Testable StaticMethod.
         file_hash = hashlib.sha256()
         block_size = self.eval_blocksize()
         with open(self.file_path, 'rb') as f:
@@ -86,59 +86,104 @@ class HashFile:
                 file_hash.update(chunk)
         return file_hash.hexdigest()
 
-    def eval_blocksize(self, max_block=1073741824):
-        if self.filesize > max_block:
+    def eval_blocksize(self, max_block=1610612736):
+        #   ToDo: Refactor to Unit Testable StaticMethod.
+        bit_len = len(bin(self.filesize*8))-2
+        bin_roundup = int(int(f"1{'0'*bit_len}", 2)/8)
+        if bin_roundup > max_block:
             return max_block
-        return 536870912
+        return bin_roundup
+
+
+def find_file_home(parent_path, file_dict):
+    #   ToDo: Refactor to Unit Testable StaticMethod.
+    tail_arr = []
+    head_arr = []
+    prime_str = []
+    subpath_arr = []
+    os_sep = os.path.sep
+
+    max_tail = max([x.count(os_sep) for x in file_dict])
+    for filepath in file_dict:
+        sub_path = filepath.replace(parent_path, "")
+        subpath_arr.append(sub_path)
+
+    tail_count, keep_loop = 0, True
+    while tail_count < max_tail and keep_loop:
+        check_list = []
+        check_dict = {}
+        for x in subpath_arr:
+            filepath_temp = x
+            if len(tail_arr) > 0:
+                for substring in tail_arr:
+                    filepath_temp = filepath_temp.replace(f"{os_sep}{substring}", "")
+            if filepath_temp[-1] == os_sep:
+                filepath_temp = filepath_temp[:-1]
+            check_list.append(filepath_temp.split(os_sep)[-1])
+
+        for item in check_list:
+            check_dict[item] = check_list.count(item)
+
+        if len(check_dict) == 1:
+            save_val = max(check_dict.items(), key=operator.itemgetter(1))[0]
+            tail_arr.insert(0, save_val)
+            tail_count += 1
+        elif max(check_dict.items(), key=operator.itemgetter(1))[1] > 1:
+            save_val = max(check_dict.items(), key=operator.itemgetter(1))[0]
+            tail_arr.insert(0, save_val)
+            tail_count += 1
+        else:
+            keep_loop = False
+
+    head_count, keep_loop = 0, True
+    common_prefix_head = tail_arr[0]
+    while keep_loop and head_count < max_tail-len(tail_arr):
+        check_list = []
+        check_dict = {}
+
+        for sub_path in subpath_arr:
+            current_file = sub_path
+            if len(head_arr) > 0:
+                for item in head_arr:
+                    current_file = current_file.replace(f'{item}', "")
+            while current_file[0] == os_sep:
+                current_file = current_file[1:]
+            check_list.append(current_file.split(os_sep)[0])
+        for item in check_list:
+            check_dict[item] = check_list.count(item)
+            if item == common_prefix_head:
+                prime_str = os.path.join(parent_path, os_sep.join(head_arr + tail_arr))
+                keep_loop = False
+                break
+        if len(check_dict) == 1:
+            head_arr.insert(0, check_list[0])
+            head_count += 1
+        elif max(check_dict.items(), key=operator.itemgetter(1))[1] > 1:
+            save_val = max(check_dict.items(), key=operator.itemgetter(1))
+            head_arr.append(save_val[0])
+            head_count += 1
+        else:
+            prime_str = os.path.join(parent_path, os_sep.join(head_arr + tail_arr))
+            keep_loop = False
+
+    if prime_str in file_dict:
+        return {'Prime': prime_str}
+    else:
+        return {'Suggested': prime_str}
 
 
 if __name__ == '__main__':
     time_mainstart = time.perf_counter()
-    hash_target = Path.home() / 'Desktop' / "HashMergerTest"
-    merge_focus = ["j"]
-    testMerge = MainProcess(hash_target, merge_heads=merge_focus)
+    hash_target = Path.home() / 'Desktop' / "The Ark Challenge" / "v" / "Backup Muzik"
+    testMerge = MainProcess(hash_target)
     time_mainstop = time.perf_counter()
     maintime = time_mainstop - time_mainstart
     new_dict = {}
     for x, y in testMerge.items.items():
         new_dict[x] = list(y)
-    for x, y in new_dict.items():
-        for file in y:
-            print(x, file.parent_dir)
+    for x in new_dict:
+        if len(new_dict[x]) > 1:
+            # find_file_home()
+            [print(hashfile.file_path) for hashfile in new_dict[x]]
     print(len(testMerge.items))
-    print(f"Hash Time: {testMerge.hashtime}")
-    print(f"Main Time: {maintime}")
-
-# Mutable sub object within dictionary not updates
-# Fix by making each unique hash an instance of hash class with a mangager list.
-
-# Dictionary Update Queue
-# Queue of Hash-HashObj tuple pairs
-
-# Path Matching
-# os.path.commonprefix
-# os.path.commonpath
-
-# Merge all folder structures into a primary branch + duplicates branch
-# Create folder branches as separate folders for each unique commonprefix
-# Create shadow copy of folder-branch hierarchy by attempting to reassemble the primary/idea folder-branch
-
-# Create class for files hashed
-# Attributes: hash, full path, parent folder, grandparent folder, metadate
-# print(HashMerger.hash_file(hash_target, 4096))
-
-# # Running commands
-# output = subprocess.check_output(['ls', '-l'])
-#
-# # Path File Manipulation
-# test1 = splitext(basename('/path/file.suffix'))[0]  # Filename w/suffix
-# test3 = Path('/path/file.suffix').stem  # Filename w/o suffix
-# test5 = Path('/path/file/suffix').suffix # Filename  suffix
-#
-# # Making Directories
-# path = Path.home() / 'python-file-paths'
-# path.mkdir()
-#
-# # Making Directories and sub-directories
-# path = Path.home() / 'python-file-paths' / 'foo' / 'bar'
-# path.mkdir(parents=True, exist_ok=True)
+    print(f"Hash Time: {testMerge.hash_time}\nMain Time: {maintime}")
