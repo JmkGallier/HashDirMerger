@@ -44,7 +44,7 @@ class MainProcess:
     def evaluate_folders(self, target_folder):
         #   ToDo: Refactor to Unit Testable StaticMethod.
         """
-
+        Recursive depth search for all files and subdirectories.
         :param target_folder:
         :return:
         """
