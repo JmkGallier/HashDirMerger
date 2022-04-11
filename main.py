@@ -71,14 +71,21 @@ class HashFile:
         self.file_path = file_path_obj
         self.filename, self.filetype = splitext(basename(file_path_obj))
         self.filesize = os.path.getsize(self.file_path)
+        self.rd_blk_sz = self.eval_blocksize(self.filesize)
         self.parent_dir = file_path_obj.parent
-        self.hash = self.hash_file()
+        self.hash = self.hash_file(self.file_path, self.rd_blk_sz)
 
-    def hash_file(self):
-        #   ToDo: Refactor to Unit Testable StaticMethod.
+    @staticmethod
+    def hash_file(file_path, blk_sz):
+        """
+        Return sha256sum of file using filename and blocksize to incrementally read in file.
+        :param file_path:
+        :param blk_sz:
+        :return:
+        """
         file_hash = hashlib.sha256()
-        block_size = self.eval_blocksize()
-        with open(self.file_path, 'rb') as f:
+        block_size = blk_sz
+        with open(file_path, 'rb') as f:
             while True:
                 chunk = f.read(block_size)
                 if not chunk:
@@ -86,9 +93,15 @@ class HashFile:
                 file_hash.update(chunk)
         return file_hash.hexdigest()
 
-    def eval_blocksize(self, max_block=1610612736):
-        #   ToDo: Refactor to Unit Testable StaticMethod.
-        bit_len = len(bin(self.filesize*8))-2
+    @staticmethod
+    def eval_blocksize(file_size):
+        """
+        Retunrs read blocksize in bytes; The smaller of 1.5GB or round up file size to nearest 2^n bits).
+        :param file_size:
+        :return:
+        """
+        max_block = 1610612736
+        bit_len = len(bin(file_size*8))-2
         bin_roundup = int(int(f"1{'0'*bit_len}", 2)/8)
         if bin_roundup > max_block:
             return max_block

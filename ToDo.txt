@@ -8,6 +8,8 @@ Merge variant folders
 Point system that considers: Parent_Dir, file match hits, hit/total files, sub_dir hits, sub_dir hit/total subdirs
 """
 
+# ToDo: test_main_unit.py, test_main_integration.py
+
 "FolderProfile.associate_folders" # folder + list of shared files (can share more than one file)
         # Update in script that reviews hash results. append parent dir that share child files.
         # Mid hashing shared child updates are feasible in the following scenario:
