@@ -16,7 +16,7 @@ class MainProcess:
         self.items = self.manager.dict()
         self.filelist = []
         self.dirlist = []
-        self.evaluate_folders(target_folder)
+        self.filelist, self.dirlist = MainProcess.evaluate_folders(target_folder, self.dirlist, self.filelist)
         self.merge_heads = merge_heads
         self.hash_time = None
         self.hash_driver()
@@ -41,22 +41,24 @@ class MainProcess:
         time_hashstop = time.perf_counter()
         self.hash_time = time_hashstop - time_hashstart
 
-    def evaluate_folders(self, target_folder):
-        #   ToDo: Refactor to Unit Testable StaticMethod.
+    @staticmethod
+    def evaluate_folders(target_folder, dir_list, file_list):
         """
         Recursive depth search for all files and subdirectories.
+        :param file_list:
+        :param dir_list:
         :param target_folder:
         :return:
         """
-        print(target_folder)
         folder_contents = os.listdir(target_folder)
         for file in folder_contents:
             target_file = target_folder / file
             if os.path.isfile(target_file):
-                self.filelist.append(target_file)
+                file_list.append(target_file)
             if os.path.isdir(target_file):
-                self.dirlist.append(FolderProfile(target_folder))
-                self.evaluate_folders(target_file)
+                dir_list.append(FolderProfile(target_folder))
+                file_list, dir_list = MainProcess.evaluate_folders(target_file, dir_list, file_list)
+        return file_list, dir_list
 
 
 class FolderProfile:
@@ -67,12 +69,12 @@ class FolderProfile:
 
 
 class HashFile:
-    def __init__(self, file_path_obj):
-        self.file_path = file_path_obj
-        self.filename, self.filetype = splitext(basename(file_path_obj))
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.filename, self.filetype = splitext(basename(file_path))
         self.filesize = os.path.getsize(self.file_path)
         self.rd_blk_sz = self.eval_blocksize(self.filesize)
-        self.parent_dir = file_path_obj.parent
+        self.parent_dir = file_path.parent
         self.hash = self.hash_file(self.file_path, self.rd_blk_sz)
 
     @staticmethod
@@ -187,7 +189,7 @@ def find_file_home(parent_path, file_dict):
 
 if __name__ == '__main__':
     time_mainstart = time.perf_counter()
-    hash_target = Path.home() / 'Desktop' / "The Ark Challenge" / "v" / "Backup Muzik"
+    hash_target = Path.home() / 'Desktop' / "The Ark Challenge"
     testMerge = MainProcess(hash_target)
     time_mainstop = time.perf_counter()
     maintime = time_mainstop - time_mainstart
