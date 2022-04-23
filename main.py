@@ -98,10 +98,14 @@ class HashFile:
     @staticmethod
     def eval_blocksize(file_size):
         """
-        Retunrs read blocksize in bytes; The smaller of 1.5GB or round up file size to nearest 2^n bits).
+        Retuns read block size in bytes; The smaller of 1.5GB or file size round up to nearest 2^n bits).
         :param file_size:
         :return:
         """
+        if type(file_size) != int:
+            raise TypeError(f"Value should be of type 'int', not '{type(file_size)}'.")
+        if file_size < 1:
+            raise ValueError("Value should be a positive non-zero variable of type 'int'")
         max_block = 1610612736
         bit_len = len(bin(file_size*8))-2
         bin_roundup = int(int(f"1{'0'*bit_len}", 2)/8)
